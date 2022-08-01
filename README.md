@@ -3,7 +3,7 @@ ReTiCo Module for RASA NLU
 
 ### Dependencies
 
-`pip install rasa==3.0.0`
+`rasa==3.0.0`
 
 ### Code Example
 
