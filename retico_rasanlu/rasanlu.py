@@ -8,9 +8,11 @@ from retico_core.dialogue import DialogueActIU
 # rasa
 import sys
 import os
+import asyncio
+from functools import wraps, partial
 # sys.path.append(os.environ['RASA'])
 # from rasa.nlu.model import IncrementalInterpreter as Interpreter
-from rasa.nlu.model import Interpreter
+from rasa.core.agent import Agent, load_agent
 
 class RasaNLUModule(abstract.AbstractModule):
     """A standard rasa NLU module.
@@ -52,8 +54,15 @@ class RasaNLUModule(abstract.AbstractModule):
         self.lb_hypotheses = []
         self.cache = None
         self.started_prediction = False
-        self.interpreter = Interpreter.load(self.model_dir)
         self.prefix = []
+        self.load_latest_model()
+
+    def load_latest_model(self):
+        files = os.listdir(self.model_dir) 
+        paths = [os.path.join(self.model_dir, basename) for basename in files] 
+        latest_file = max(paths, key=os.path.getctime) 
+        print("NLU loading latest file", latest_file)
+        self.interpreter =  Agent.load(model_path=latest_file)   
     
     def new_utterance(self):
         if self.incremental:
@@ -82,14 +91,15 @@ class RasaNLUModule(abstract.AbstractModule):
         update_iu = abstract.UpdateMessage.from_iu(output_iu, abstract.UpdateType.ADD)            
         return update_iu
 
-    def process_update(self, update):
+    def process_update(self, update_message):
+        print("NLU getting update")
         result = ""
-        for x in range(0, len(update._msgs)):
-            if update._msgs[x][1] == abstract.UpdateType.ADD:
-                result = self.process_iu(update._msgs[x][0])
-            elif update._msgs[x][1] == abstract.UpdateType.REVOKE:
-                result = self.process_revoke(update._msgs[x][0])
-        return result
+        for iu,um in update_message:
+            if um == abstract.UpdateType.ADD:
+                self.process_iu(iu)
+            elif um == abstract.UpdateType.REVOKE:
+                self.process_revoke(iu)
+
 
     def process_iu(self, input_iu):
         if self.incremental:
@@ -100,10 +110,16 @@ class RasaNLUModule(abstract.AbstractModule):
         else:
             self.prefix.append(input_iu.get_text())
             text = ' '.join(self.prefix)
-            result = self.interpreter.parse(text)
-        if result is not None:
-            p_result = self.process_result(result, input_iu)
-            return p_result
+            # we need to do some shananigans to make the async RASA interpreter work in a synchronous function
+            async def async_interpret(text):
+                result = await self.interpreter.parse_message(message_data=text)
+                if result is not None:
+                    p_result = self.process_result(result, input_iu)
+                    self.append(p_result)
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            coroutine = async_interpret(text)
+            loop.run_until_complete(coroutine)
         
 
     def process_revoke(self, revoked_iu):
