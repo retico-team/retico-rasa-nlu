@@ -64,19 +64,23 @@ class RasaNLUModule(abstract.AbstractModule):
         print("NLU loading latest file", latest_file)
         self.interpreter =  Agent.load(model_path=latest_file)   
     
-    def new_utterance(self):
+    async def new_utterance(self):
+        print("New Utterance called")
         if self.incremental:
-            self.interpreter.new_utterance()
-        self.prefix = []
-        super().new_utterance()
+            await self.interpreter.new_utterance()
 
-    def process_result(self, result, input_iu):
+        self.prefix = []
+        #super().new_utterance()
+
+    async def process_result(self, result, input_iu):
         #print("RESULT: {}".format(result))
         payload = {}
         for entity in result.get("entities"):
             payload[entity["entity"]] = entity["value"]
             # concepts['{}_confidence'.format(entity["entity"])] = entity['confidence']
         act = result["intent"]["name"]
+        payload['intent'] = act                                     #should this be added??????
+        payload['text'] = result["text"]
         # confidence = result["intent"]["confidence"]
         # print('nlu', act, concepts, confidence)
         output_iu = self.create_iu(input_iu)
@@ -85,6 +89,7 @@ class RasaNLUModule(abstract.AbstractModule):
         if input_iu.committed:
             output_iu.committed = True
             self.started_prediction = False
+            await self.new_utterance()
         else:
             self.started_prediction = True
         update_iu = abstract.UpdateMessage()
@@ -106,7 +111,18 @@ class RasaNLUModule(abstract.AbstractModule):
             result = None
             for word in input_iu.get_text().split():
                 text_iu = (word, "add") # only handling add for now
-                result = self.interpreter.parse_incremental(text_iu)
+                
+                async def async_interpret(text):
+                    result = await self.interpreter.parse_incremental(text_iu)
+                    if result is not None:
+                        p_result = await self.process_result(result, input_iu)
+                        self.append(p_result)
+
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                coroutine = async_interpret(text_iu)
+                loop.run_until_complete(coroutine)
+                
         else:
             self.prefix.append(input_iu.get_text())
             text = ' '.join(self.prefix)
@@ -114,7 +130,7 @@ class RasaNLUModule(abstract.AbstractModule):
             async def async_interpret(text):
                 result = await self.interpreter.parse_message(message_data=text)
                 if result is not None:
-                    p_result = self.process_result(result, input_iu)
+                    p_result = await self.process_result(result, input_iu)
                     self.append(p_result)
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -126,19 +142,32 @@ class RasaNLUModule(abstract.AbstractModule):
         
         result =  None
         if self.incremental:
-            for word in reversed(revoked_iu.get_text().split()):
-                text_iu = (word, "revoke") 
-                # print('nlu revoke({})'.format(word))
-                result = self.interpreter.parse_incremental(text_iu)
-            if result is not None:
-                result = self.process_result(result, revoked_iu)
+            async def async_interpret(revoked_iu):
+                for word in revoked_iu.get_text().split():
+                    text_iu = (word, "revoke") 
+                    # print('nlu revoke({})'.format(word))
+                    result = await self.interpreter.parse_incremental(text_iu)
+                
+                #should this be indented???
+                if result is not None:
+                    result = await self.process_result(result, revoked_iu)
+            
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            coroutine = async_interpret(revoked_iu)
+            loop.run_until_complete(coroutine)
+               
         else:
             if len(self.prefix) > 0:
                 self.prefix.pop()
+        
+        try:  #no iu_stack error??? This was happening before I made any changes
+            if len(self._iu_stack) > 0:
+                last_output_iu = self._iu_stack.pop()
+                self.revoke(last_output_iu)
+        except:
+            pass
             
-        if len(self._iu_stack) > 0:
-            last_output_iu = self._iu_stack.pop()
-            self.revoke(last_output_iu)
         
         return result
 
