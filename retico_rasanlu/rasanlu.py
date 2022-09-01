@@ -66,9 +66,6 @@ class RasaNLUModule(abstract.AbstractModule):
     
     async def new_utterance(self):
         print("New Utterance called")
-        if self.incremental:
-            await self.interpreter.new_utterance()
-
         self.prefix = []
         #super().new_utterance()
 
@@ -86,10 +83,10 @@ class RasaNLUModule(abstract.AbstractModule):
         output_iu = self.create_iu(input_iu)
         output_iu.payload = payload
         piu = output_iu.previous_iu
+        payload['Committed'] = input_iu.committed
         if input_iu.committed:
             output_iu.committed = True
             self.started_prediction = False
-            await self.new_utterance()
         else:
             self.started_prediction = True
         update_iu = abstract.UpdateMessage()
@@ -100,6 +97,7 @@ class RasaNLUModule(abstract.AbstractModule):
         print("NLU getting update")
         result = ""
         for iu,um in update_message:
+            print(um)
             if um == abstract.UpdateType.ADD:
                 self.process_iu(iu)
             elif um == abstract.UpdateType.REVOKE:
@@ -109,14 +107,27 @@ class RasaNLUModule(abstract.AbstractModule):
     def process_iu(self, input_iu):
         if self.incremental:
             result = None
-            for word in input_iu.get_text().split():
-                text_iu = (word, "add") # only handling add for now
+
+            tokens = input_iu.get_text().split()
+
+
+            if len(tokens) == 0 and input_iu.committed:
+                tokens = [("", "commit")]
+            elif input_iu.committed:
+                tokens = [(word,"add") for word in tokens]
+                tokens[-1] = (tokens[-1][0],"commit")
+            else:
+                tokens = [(word,"add") for word in tokens]
+
+            for text_iu in tokens:
                 
-                async def async_interpret(text):
+                async def async_interpret(text_iu):
                     result = await self.interpreter.parse_incremental(text_iu)
                     if result is not None:
                         p_result = await self.process_result(result, input_iu)
                         self.append(p_result)
+                    if text_iu[1] == "commit":
+                        await self.new_utterance()
 
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
