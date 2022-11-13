@@ -17,11 +17,11 @@ except ImportError:
 
 config = {
     "description": "The RASA NLU incremental module for the retico framework",
-    "author": "Ryan Pacheco, Casey Kennington",
+    "author": "Ryan Pacheco, Casey Kennington, Enoch Levandovsky",
     "url": "??",
     "download_url": "??",
-    "author_email": "caseykennington@boisestate.edu",
-    "version": "0.1",
+    "author_email": "caseykennington@boisestate.edu, enochlev@gmail.com",
+    "version": "1.0",
     "install_requires": ["retico-core~=0.2.0", "rasa~=3.2"],
     "packages": find_packages(),
     "name": "retico-rasa-nlu",
