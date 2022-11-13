@@ -55,7 +55,12 @@ class RasaNLUModule(abstract.AbstractModule):
         self.cache = None
         self.started_prediction = False
         self.prefix = []
-        self.load_latest_model()
+
+        if ".tar.gz" in model_dir[-7:]:
+            self.interpreter =  Agent.load(model_path=model_dir) 
+        else:
+            self.load_latest_model()
+
         self.imported_preprocessor = preprocessor
 
     def load_latest_model(self):
