@@ -169,9 +169,9 @@ class RasaNLUModule(abstract.AbstractModule):
         result =  None
         if self.incremental:
 
-            tokens = tokens=self.preproccessor(revoked_iu.get_text()).split()
+            tokens = self.preproccessor(revoked_iu.get_text()).split()
             tokens.reverse()
-            print(tokens)
+            # print(tokens)
 
             async def async_interpret(revoked_iu,tokens):
                 for word in tokens:
