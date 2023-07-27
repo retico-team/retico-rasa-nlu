@@ -5,6 +5,8 @@ ReTiCo Module for RASA NLU
 
 `rasa==3.0.0`
 
+- Might require this version of RASA: https://bitbucket.org/bsu-slim/incremental-rasa-nlu
+
 ### Code Example
 
 ```
