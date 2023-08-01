@@ -5,7 +5,8 @@ ReTiCo Module for RASA NLU
 
 `rasa==3.0.0`
 
-- A proper incrementally trained model will require this version of RASA: https://bitbucket.org/bsu-slim/incremental-rasa-nlu
+- A proper incrementally trained model will require [this version](https://bitbucket.org/bsu-slim/incremental-rasa-nlu) of RASA
+- An example config.yml and domain for training can be found [here](https://bitbucket.org/bsu-slim/incremental-rasa-nlu/src/master/examples/moodbot_incremental/).
 
 
 ### Code Example
