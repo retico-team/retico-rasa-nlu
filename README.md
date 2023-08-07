@@ -7,6 +7,7 @@ ReTiCo Module for RASA NLU
 
 - A proper incrementally trained model will require [this version](https://bitbucket.org/bsu-slim/incremental-rasa-nlu) of RASA
 - An example config.yml and domain for training can be found [here](https://bitbucket.org/bsu-slim/incremental-rasa-nlu/src/master/examples/moodbot_incremental/).
+- [This video](https://drive.google.com/file/d/1A-W1itqtMQoI_Igl94moaje0ATT2GWte/view?usp=drive_link) explains how to setup the environment, domain, and training.
 
 
 ### Code Example
