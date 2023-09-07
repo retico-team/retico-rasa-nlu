@@ -1,18 +1,17 @@
 """A module for Natural Language Understanding provided by rasa_nlu"""
-
+import os,sys
+sys.path.append(os.environ['RASA'])
 # retico
 from retico_core import abstract
 from retico_core.text import SpeechRecognitionIU
 from retico_core.dialogue import DialogueActIU
 
 # rasa
-import sys
-import os
 import asyncio
 from functools import wraps, partial
 # sys.path.append(os.environ['RASA'])
 # from rasa.nlu.model import IncrementalInterpreter as Interpreter
-from rasa.core.agent import Agent, load_agent
+from rasa.core.agent import Agent
 
 class RasaNLUModule(abstract.AbstractModule):
     """A standard rasa NLU module.
@@ -40,7 +39,7 @@ class RasaNLUModule(abstract.AbstractModule):
     def output_iu():
         return DialogueActIU
 
-    def __init__(self, model_dir, incremental=True, preprocessor = None, **kwargs):
+    def __init__(self, model_dir, preprocessor = None, **kwargs):
         """Initializes the RasaNLUModule.
 
         Args:
@@ -50,7 +49,6 @@ class RasaNLUModule(abstract.AbstractModule):
         super().__init__(**kwargs)
         self.model_dir = model_dir
         self.interpreter = None
-        self.incremental = incremental
         self.lb_hypotheses = []
         self.cache = None
         self.started_prediction = False
@@ -70,7 +68,7 @@ class RasaNLUModule(abstract.AbstractModule):
         print("NLU loading latest file", latest_file)
         self.interpreter =  Agent.load(model_path=latest_file)   
     
-    async def new_utterance(self):
+    def new_utterance(self):
         print("New Utterance called")
         self.prefix = []
         #super().new_utterance()
@@ -103,94 +101,98 @@ class RasaNLUModule(abstract.AbstractModule):
         return update_iu
 
     def process_update(self, update_message):
-        print("NLU getting update")
-        result = ""
+        # print("NLU getting update")
+        # result = ""
         for iu,um in update_message:
             print(um)
             if um == abstract.UpdateType.ADD:
                 self.process_iu(iu)
             elif um == abstract.UpdateType.REVOKE:
                 self.process_revoke(iu)
+            elif um == abstract.UpdateType.COMMIT:
+                self.new_utterance()
 
     def preproccessor(self, text):
-        "Just make the final return value a full sentance for the default preprocessor"
+        # "Just make the final return value a full sentance for the default preprocessor"
         if self.imported_preprocessor:
             return self.imported_preprocessor(text)
         #define your own preproccessor
         return text
 
     def process_iu(self, input_iu):
-        if self.incremental:
 
-            tokens=self.preproccessor(input_iu.get_text()).split()
+        tokens=self.preproccessor(input_iu.get_text())
 
-            if len(tokens) == 0 and input_iu.committed:
-                tokens = [("", "commit")]
-            elif input_iu.committed:
-                tokens = [(word,"add") for word in tokens]
-                tokens.append(("","commit"))
-            elif len(tokens) == 0 and input_iu.committed == False:
-                return
-            else:
-                tokens = [(word,"add") for word in tokens]
-
-            for text_iu in tokens:
-                
-                async def async_interpret(text_iu):
-                    result = await self.interpreter.parse_incremental(text_iu)
-                    if result is not None:
-                        p_result = await self.process_result(result, input_iu)
-                        self.append(p_result)
-                    if text_iu[1] == "commit":
-                        await self.new_utterance()
-
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                coroutine = async_interpret(text_iu)
-                loop.run_until_complete(coroutine)
-                
+        if len(tokens) == 0 and input_iu.committed:
+            tokens = [("", "commit")]
+        elif input_iu.committed:
+            tokens = [(word,"add") for word in tokens]
+            tokens.append(("","commit"))
+        elif len(tokens) == 0 and input_iu.committed == False:
+            return
         else:
-            self.prefix.append(input_iu.get_text())
-            text = ' '.join(self.prefix)
-            # we need to do some shananigans to make the async RASA interpreter work in a synchronous function
-            async def async_interpret(text):
-                result = await self.interpreter.parse_message(message_data=text)
+            tokens = [(word,"add") for word in tokens]
+
+        for text_iu in tokens:
+            
+            async def async_interpret(text_iu):
+                print(text_iu)
+                _text = text_iu[0] # text/word
+                _em = text_iu[1] # edit message
+                result = await self.interpreter.parse_incremental(text_iu)
+                print(result)
                 if result is not None:
                     p_result = await self.process_result(result, input_iu)
                     self.append(p_result)
+
+
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            coroutine = async_interpret(text)
+            coroutine = async_interpret(text_iu)
             loop.run_until_complete(coroutine)
+                
+        # else:
+        #     self.prefix.append(input_iu.get_text())
+        #     text = ' '.join(self.prefix)
+        #     # we need to do some shananigans to make the async RASA interpreter work in a synchronous function
+        #     async def async_interpret(text):
+        #         result = await self.interpreter.parse_message(message_data=text)
+        #         if result is not None:
+        #             p_result = await self.process_result(result, input_iu)
+        #             self.append(p_result)
+        #     loop = asyncio.new_event_loop()
+        #     asyncio.set_event_loop(loop)
+        #     coroutine = async_interpret(text)
+        #     loop.run_until_complete(coroutine)
         
 
     def process_revoke(self, revoked_iu):
         
         result =  None
-        if self.incremental:
+        # if self.incremental:
 
-            tokens = self.preproccessor(revoked_iu.get_text()).split()
-            tokens.reverse()
-            # print(tokens)
+        tokens = self.preproccessor(revoked_iu.get_text()).split()
+        tokens.reverse()
+        # print(tokens)
 
-            async def async_interpret(revoked_iu,tokens):
-                for word in tokens:
-                    text_iu = (word, "revoke")
-                    # print('nlu revoke({})'.format(word))
-                    result = await self.interpreter.parse_incremental(text_iu)
-                
-                #should this be indented???
-                if result is not None:
-                    result = await self.process_result(result, revoked_iu)
+        async def async_interpret(revoked_iu,tokens):
+            for word in tokens:
+                text_iu = (word, "revoke")
+                # print('nlu revoke({})'.format(word))
+                result = await self.interpreter.parse_incremental(text_iu)
             
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            coroutine = async_interpret(revoked_iu,tokens)
-            loop.run_until_complete(coroutine)
+            #should this be indented???
+            if result is not None:
+                result = await self.process_result(result, revoked_iu)
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        coroutine = async_interpret(revoked_iu,tokens)
+        loop.run_until_complete(coroutine)
                
-        else:
-            if len(self.prefix) > 0:
-                self.prefix.pop()
+        # else:
+        #     if len(self.prefix) > 0:
+        #         self.prefix.pop()
         
         try:  #no iu_stack error??? This was happening before I made any changes
             if len(self._iu_stack) > 0:
