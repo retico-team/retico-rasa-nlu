@@ -109,8 +109,6 @@ class RasaNLUModule(abstract.AbstractModule):
                 self.process_iu(iu)
             elif um == abstract.UpdateType.REVOKE:
                 self.process_revoke(iu)
-            elif um == abstract.UpdateType.COMMIT:
-                self.new_utterance()
 
     def preproccessor(self, text):
         # "Just make the final return value a full sentance for the default preprocessor"
@@ -140,7 +138,7 @@ class RasaNLUModule(abstract.AbstractModule):
                 _text = text_iu[0] # text/word
                 _em = text_iu[1] # edit message
                 result = await self.interpreter.parse_incremental(text_iu)
-                print(result)
+                # print(result)
                 if result is not None:
                     p_result = await self.process_result(result, input_iu)
                     self.append(p_result)
