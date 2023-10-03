@@ -104,7 +104,7 @@ class RasaNLUModule(abstract.AbstractModule):
         # print("NLU getting update")
         # result = ""
         for iu,um in update_message:
-            print(um)
+            print('nlu', iu, um)
             if um == abstract.UpdateType.ADD:
                 self.process_iu(iu)
             elif um == abstract.UpdateType.REVOKE:
@@ -119,35 +119,32 @@ class RasaNLUModule(abstract.AbstractModule):
 
     def process_iu(self, input_iu):
 
-        tokens=self.preproccessor(input_iu.get_text())
+        token=self.preproccessor(input_iu.get_text())
 
-        if len(tokens) == 0 and input_iu.committed:
-            tokens = [("", "commit")]
+        if len(token) == 0 and input_iu.committed:
+            token = ("", "commit")
         elif input_iu.committed:
-            tokens = [(word,"add") for word in tokens]
-            tokens.append(("","commit"))
-        elif len(tokens) == 0 and input_iu.committed == False:
+            token = (token,"add")
+            token.append(("","commit"))
+        elif len(token) == 0 and input_iu.committed == False:
             return
         else:
-            tokens = [(word,"add") for word in tokens]
+            token = (token,"add")
 
-        for text_iu in tokens:
-            
-            async def async_interpret(text_iu):
-                print(text_iu)
-                _text = text_iu[0] # text/word
-                _em = text_iu[1] # edit message
-                result = await self.interpreter.parse_incremental(text_iu)
-                # print(result)
-                if result is not None:
-                    p_result = await self.process_result(result, input_iu)
-                    self.append(p_result)
+        async def async_interpret(text_iu):
+            # print(text_iu)
+            # _text = text_iu[0] # text/word
+            # _em = text_iu[1] # edit message
+            result = await self.interpreter.parse_incremental(text_iu)
+            # print(result)
+            if result is not None:
+                p_result = await self.process_result(result, input_iu)
+                self.append(p_result)
 
-
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            coroutine = async_interpret(text_iu)
-            loop.run_until_complete(coroutine)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        coroutine = async_interpret(token)
+        loop.run_until_complete(coroutine)
                 
         # else:
         #     self.prefix.append(input_iu.get_text())
