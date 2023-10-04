@@ -124,8 +124,8 @@ class RasaNLUModule(abstract.AbstractModule):
         if len(token) == 0 and input_iu.committed:
             token = ("", "commit")
         elif input_iu.committed:
-            token = (token,"add")
-            token.append(("","commit"))
+            # token = (token,"add")
+            token = ("","commit")
         elif len(token) == 0 and input_iu.committed == False:
             return
         else:
@@ -163,22 +163,23 @@ class RasaNLUModule(abstract.AbstractModule):
 
     def process_revoke(self, revoked_iu):
         
-        result =  None
-        # if self.incremental:
+        # result =  None
+        # # if self.incremental:
 
-        tokens = self.preproccessor(revoked_iu.get_text()).split()
-        tokens.reverse()
-        # print(tokens)
+        tokens = self.preproccessor(revoked_iu.get_text())
+        
+        # tokens.reverse()
+        # # print(tokens)
 
-        async def async_interpret(revoked_iu,tokens):
-            for word in tokens:
-                text_iu = (word, "revoke")
-                # print('nlu revoke({})'.format(word))
-                result = await self.interpreter.parse_incremental(text_iu)
+        async def async_interpret(revoked_iu,token):
+        #     for word in tokens:
+            text_iu = (token, "revoke")
+        #         # print('nlu revoke({})'.format(word))
+            result = await self.interpreter.parse_incremental(text_iu)
             
-            #should this be indented???
-            if result is not None:
-                result = await self.process_result(result, revoked_iu)
+        #     #should this be indented???
+        #     if result is not None:
+        #         result = await self.process_result(result, revoked_iu)
         
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -188,16 +189,13 @@ class RasaNLUModule(abstract.AbstractModule):
         # else:
         #     if len(self.prefix) > 0:
         #         self.prefix.pop()
-        
-        try:  #no iu_stack error??? This was happening before I made any changes
-            if len(self._iu_stack) > 0:
-                last_output_iu = self._iu_stack.pop()
-                self.revoke(last_output_iu)
-        except:
-            pass
+        #no iu_stack error??? This was happening before I made any changes
+        # if len(self._iu_stack) > 0:
+        #     last_output_iu = self._iu_stack.pop()
+        #     self.revoke(last_output_iu)
             
         
-        return result
+        # return result
 
     def setup(self):
         pass
